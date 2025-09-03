@@ -1,0 +1,327 @@
+<!DOCTYPE html><html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TOP SECRET // Launch Console</title>
+  <style>
+    :root{
+      --bg:#0b0f12; 
+      --panel:#0e1419;
+      --text:#c8facc;
+      --muted:#6abf73;
+      --accent:#49ff4a;
+      --danger:#ff5555;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:linear-gradient(#070a0c, #0b0f12);
+      color:var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      display:flex; flex-direction:column;
+    }
+    header{
+      padding:14px 16px; background:#0a0f13; border-bottom:1px solid #121a21;
+      display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+      position:sticky; top:0; z-index:10;
+    }
+    .title{font-weight:700; letter-spacing:.06em; color:#a5ffb0}
+    .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    button, select, input[type="range"]{
+      background:#101820; color:var(--text); border:1px solid #20343f; border-radius:10px; padding:10px 14px; font-weight:600;
+      box-shadow:0 0 0 1px #0b151b inset, 0 4px 12px rgba(0,0,0,.3);
+    }
+    button{cursor:pointer; transition:transform .05s ease, box-shadow .2s ease}
+    button:hover{box-shadow:0 0 0 1px #1d3d2a inset, 0 6px 16px rgba(0,0,0,.45)}
+    button:active{transform:translateY(1px)}
+    button.primary{border-color:#1f6d2a; background:#10331a}
+    button.danger{border-color:#6d1f1f; background:#331010; color:#ffb3b3}
+    .led{width:10px;height:10px;border-radius:50%; background:#243b2b; box-shadow:0 0 0 2px #0b1511 inset}
+    .led.on{background:#3cff66; box-shadow:0 0 6px 2px rgba(60,255,102,.6)}main{flex:1; display:grid; grid-template-rows:auto 1fr;}
+
+.console{
+  background:radial-gradient(100% 100% at 50% 0%, #0b1013 0%, #080c0f 60%, #060a0c 100%);
+  border-top:1px solid #121a21;
+  padding:14px; overflow:auto; scrollbar-width:thin;
+  position:relative;
+}
+/* Scanline & subtle CRT flicker */
+.console::after{
+  content:""; position:absolute; inset:0; pointer-events:none; opacity:.08; mix-blend-mode:screen;
+  background:repeating-linear-gradient(transparent 0 2px, rgba(255,255,255,.07) 2px 3px);
+}
+.log{
+  white-space:pre-wrap; line-height:1.35; font-size:14px;
+}
+.log .ts{color:#7de88a}
+.log .ok{color:#8ef5a0}
+.log .warn{color:#ffe08a}
+.log .err{color:#ff9aa7}
+.log .accent{color:var(--accent)}
+.log .danger{color:var(--danger)}
+
+footer{padding:8px 16px; font-size:12px; color:#9bd5a2; opacity:.8}
+
+.statusbar{display:flex; gap:14px; align-items:center}
+.grow{flex:1}
+.kpm{font-variant-numeric:tabular-nums}
+
+@media (max-width: 560px){
+  .log{font-size:13px}
+  button{padding:9px 12px}
+}
+
+  </style>
+</head>
+<body>
+  <header>
+    <div class="led" id="led"></div>
+    <div class="title">TOP SECRET // LEVEL OMEGA — Launch Console</div>
+    <div class="controls">
+      <button id="start" class="primary">시작 ▶</button>
+      <button id="pause">일시정지 ⏸</button>
+      <button id="reset" class="danger">초기화 ⟲</button>
+      <label>속도 <input id="speed" type="range" min="0" max="100" value="40"/></label>
+      <label>
+        한 번에 표시 줄수
+        <select id="burst">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+      <label>
+        효과음
+        <select id="sfx">
+          <option value="on" selected>ON</option>
+          <option value="off">OFF</option>
+        </select>
+      </label>
+    </div>
+  </header>  <main>
+    <div class="console" id="console" aria-live="polite" aria-atomic="false">
+      <div class="log" id="log"></div>
+    </div>
+    <div class="statusbar">
+      <div class="grow"></div>
+      <div class="kpm" id="kpm">0 lines</div>
+    </div>
+  </main>  <footer>
+    완전 가상 시뮬레이션입니다. 실제 시스템과 무관합니다.
+  </footer>  <script>
+    // ===== Log Script =====
+    const logEl = document.getElementById('log');
+    const consoleEl = document.getElementById('console');
+    const led = document.getElementById('led');
+    const kpm = document.getElementById('kpm');
+
+    const startBtn = document.getElementById('start');
+    const pauseBtn = document.getElementById('pause');
+    const resetBtn = document.getElementById('reset');
+    const speedRange = document.getElementById('speed');
+    const burstSel = document.getElementById('burst');
+    const sfxSel = document.getElementById('sfx');
+
+    // Build a reusable timestamp
+    const ts = (t)=>`<span class="ts">${t}</span>`;
+
+    // Master script (procedural, no narration). You can freely edit lines below.
+    const LINES = [
+      "00:00:01 — SYSTEM BOOT... <span class=ok>OK</span>",
+      "00:00:02 — SATELLITE LINK... <span class=ok>ESTABLISHED</span>",
+      "00:00:03 — MAINFRAME ACCESS... <span class=ok>GRANTED</span>",
+      "00:00:04 — SECURITY CLEARANCE... <span class=ok>VERIFIED</span>",
+      "00:00:05 — PROTOCOL \"NOVA-1\" INITIATED",
+      "00:00:07 — DUAL-KEY SYSTEM ARMED",
+      "00:00:08 — KEY A: INSERTED ✅",
+      "00:00:09 — KEY B: INSERTED ✅",
+      "00:00:10 — OVERRIDE LOCK: DISABLED",
+      "00:00:12 — COMMAND CODE INPUT REQUIRED",
+      "00:00:13 — CODE RECEIVED: █████-█████-OMEGA",
+      "00:00:14 — CODE VERIFICATION... <span class=ok>MATCH</span>",
+      "00:00:16 — TARGETING SYSTEM ONLINE",
+      "00:00:17 — COORDINATE UPLOAD... <span class=ok>SUCCESS</span>",
+      "00:00:18 — TRAJECTORY CALCULATION... <span class=ok>COMPLETE</span>",
+      "00:00:19 — WARHEAD PAYLOAD: 3x MIRV",
+      "00:00:20 — STATUS: STANDBY",
+      "00:00:22 — COMM CHANNEL SYNC... ACTIVE",
+      "00:00:23 — GLOBAL ALERT SIGNAL: TRANSMITTED",
+      "00:00:24 — RESPONSE: ACKNOWLEDGED",
+      "00:00:26 — FINAL CONFIRMATION REQUIRED",
+      "00:00:27 — AUTHORIZATION LEVEL: OMEGA",
+      "00:00:28 — COMMAND SEAL: VERIFIED",
+      "00:00:30 — LAUNCH TIMER ACTIVATED",
+      // Countdown 30 -> 1
+      ...Array.from({length:30}, (_,i)=>`00:00:${31+i} — T-MINUS ${30-i}...`),
+      "00:01:03 — LAUNCH SEQUENCE INITIATED",
+      "00:01:04 — SILO DOORS OPEN ✅",
+      "00:01:05 — IGNITION... ACTIVE",
+      "00:01:06 — BOOSTER STAGE 1... ONLINE",
+      "00:01:07 — BOOSTER STAGE 2... ONLINE",
+      "00:01:08 — STABILIZER CONTROL... LOCKED",
+      "00:01:09 — FUEL PRESSURE... NOMINAL",
+      "00:01:10 — GUIDANCE SYSTEM... SYNCED",
+      "00:01:12 — FINAL CHECK COMPLETE",
+      "00:01:13 — STATUS: READY",
+      "00:01:14 — LAUNCH CONFIRMED ☢️",
+      "00:01:15 — SYSTEM RESPONSE: <span class=ok>SUCCESS</span>",
+      "00:01:16 — WARHEAD DEPLOYED",
+      "00:01:17 — TRAJECTORY: ACTIVE",
+      "00:01:18 — NUCLEAR PROTOCOL \"NOVA-1\" <span class=accent>COMPLETE</span>"
+    ];
+
+    // ===== Audio (WebAudio API, no external files) =====
+    let audioCtx; // created on first start (user gesture)
+    const sfx = {
+      enabled: true,
+      ensure(){ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); },
+      tick(){
+        if(!this.enabled) return;
+        this.ensure();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type='square';
+        o.frequency.setValueAtTime(620, audioCtx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime+0.06);
+        g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.4, audioCtx.currentTime+0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+0.08);
+        o.connect(g).connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime+0.09);
+      },
+      warn(){
+        if(!this.enabled) return;
+        this.ensure();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type='sawtooth';
+        o.frequency.setValueAtTime(520, audioCtx.currentTime);
+        o.frequency.linearRampToValueAtTime(260, audioCtx.currentTime+0.25);
+        g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.5, audioCtx.currentTime+0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+0.3);
+        o.connect(g).connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime+0.32);
+      },
+      siren(duration=2.5){
+        if(!this.enabled) return;
+        this.ensure();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type='sine';
+        const now = audioCtx.currentTime; 
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(0.6, now+0.2);
+        g.gain.exponentialRampToValueAtTime(0.0001, now+duration);
+        // up-down sweep
+        const sweep = ()=>{
+          const t = audioCtx.currentTime;
+          o.frequency.cancelScheduledValues(t);
+          o.frequency.setValueAtTime(440, t);
+          o.frequency.linearRampToValueAtTime(880, t+0.5);
+          o.frequency.linearRampToValueAtTime(440, t+1);
+        };
+        const int = setInterval(sweep, 1000);
+        sweep();
+        o.connect(g).connect(audioCtx.destination);
+        o.start();
+        setTimeout(()=>{ clearInterval(int); o.stop(); }, duration*1000);
+      },
+      boom(){
+        if(!this.enabled) return;
+        this.ensure();
+        const bufferSize=2*audioCtx.sampleRate; // ~2s
+        const noiseBuffer=audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data=noiseBuffer.getChannelData(0);
+        for(let i=0;i<bufferSize;i++){ data[i]= (Math.random()*2-1) * Math.exp(-i/bufferSize*5); }
+        const noise=audioCtx.createBufferSource();
+        noise.buffer=noiseBuffer;
+        const lowpass=audioCtx.createBiquadFilter();
+        lowpass.type='lowpass';
+        lowpass.frequency.setValueAtTime(100, audioCtx.currentTime);
+        lowpass.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime+1.5);
+        const g=audioCtx.createGain();
+        g.gain.setValueAtTime(0.7, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+2);
+        noise.connect(lowpass).connect(g).connect(audioCtx.destination);
+        noise.start(); noise.stop(audioCtx.currentTime+2);
+      }
+    };
+
+    // ===== Player =====
+    let idx = 0; // next line index
+    let playing = false; 
+    let rafId = null;
+    let lastEmit = 0;
+
+    function appendLine(line){
+      const div = document.createElement('div');
+      div.innerHTML = line;
+      logEl.appendChild(div);
+      // Auto-scroll to bottom
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+      kpm.textContent = `${logEl.children.length} lines`;
+
+      // SFX rules
+      const L = line.toUpperCase();
+      if(!sfx.enabled) return;
+      if(L.includes('T-MINUS')) sfx.tick();
+      else if(L.includes('WARNING')||L.includes('IRREVERSIBLE')) sfx.warn();
+      else if(L.includes('LAUNCH SEQUENCE INITIATED')) sfx.siren(2.2);
+      else if(L.includes('LAUNCH CONFIRMED')) sfx.boom();
+      else if(/OK|SUCCESS|COMPLETE|GRANTED|VERIFIED/.test(L)) sfx.tick();
+    }
+
+    function burstAppend(){
+      const burst = Number(burstSel.value);
+      for(let i=0;i<burst && idx<LINES.length; i++){
+        appendLine(LINES[idx++]);
+      }
+      if(idx>=LINES.length){ stop(); led.classList.remove('on'); }
+    }
+
+    function loop(ts){
+      // Speed mapping: range 0..100 -> interval 900..30 ms
+      const speed = Number(speedRange.value);
+      const interval = 900 - (speed*8.7); // ~900ms -> ~30ms
+      if(ts - lastEmit >= interval){
+        lastEmit = ts;
+        burstAppend();
+      }
+      if(playing){ rafId = requestAnimationFrame(loop); }
+    }
+
+    function start(){
+      if(playing) return; // prevent double start
+      if(sfxSel.value==='on'){ sfx.enabled = true; sfx.ensure(); }
+      else { sfx.enabled = false; }
+      playing = true; led.classList.add('on');
+      lastEmit = performance.now();
+      rafId = requestAnimationFrame(loop);
+    }
+
+    function stop(){
+      playing = false; if(rafId) cancelAnimationFrame(rafId); rafId = null;
+      led.classList.remove('on');
+    }
+
+    function reset(){
+      stop(); idx = 0; logEl.innerHTML = ''; kpm.textContent='0 lines';
+    }
+
+    startBtn.addEventListener('click', start);
+    pauseBtn.addEventListener('click', ()=> playing ? stop() : start());
+    resetBtn.addEventListener('click', reset);
+    sfxSel.addEventListener('change', ()=>{ sfx.enabled = (sfxSel.value==='on'); });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if(e.key===' ') { e.preventDefault(); playing? stop(): start(); }
+      if(e.key==='r') { reset(); }
+    });
+
+    // Respect reduced motion (start paused by default)
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(prefersReduced){ speedRange.value = 15; }
+  </script></body>
+</html>
