@@ -1,0 +1,202 @@
+<!DOCTYPE html><html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TOP SECRET // Launch Console</title>
+  <style>
+    :root{--bg:#040608;--panel:#0b0f12;--text:#c8facc;--muted:#6abf73;--accent:#49ff4a;--danger:#ff5555}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(#020305,#061014);color:var(--text);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;display:flex;flex-direction:column}
+    header{padding:12px 14px;background:#071011;border-bottom:1px solid #0f1a1e;display:flex;gap:12px;align-items:center}
+    .title{font-weight:700;color:#9afca6}
+    .controls{display:flex;gap:8px;align-items:center}
+    button, select, input[type="range"]{background:#081216;color:var(--text);border:1px solid #12262b;border-radius:8px;padding:8px 12px;font-weight:700}
+    button.primary{border-color:#1f6d2a;background:#0b3320}
+    button.danger{border-color:#6d1f1f;background:#331010;color:#ffd5d5}
+    button:active{transform:translateY(1px)}
+    main{flex:1;display:grid;grid-template-columns:1fr 420px;gap:12px;padding:12px}/* Console */
+.console{background:#06090b;border-radius:8px;padding:12px;overflow:auto;position:relative;border:1px solid #0e1518}
+.console::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.06;background:repeating-linear-gradient(transparent 0 2px, rgba(255,255,255,.04) 2px 3px)}
+.log{white-space:pre-wrap;line-height:1.35;font-size:15px}
+.log .ts{color:#7de88a}
+.log .ok{color:#8ef5a0}
+.log .warn{color:#ffe08a}
+.log .err{color:#ff9aa7}
+.log .accent{color:var(--accent)}
+.log .danger{color:var(--danger)}
+
+/* CCTV panel */
+.panel{background:#051014;border-radius:8px;padding:10px;border:1px solid #0f2327;display:flex;flex-direction:column}
+.panel h3{margin:0 0 8px 0;font-size:13px;color:#a7ffba}
+.cctv{flex:1;background:#001014;border-radius:6px;position:relative;overflow:hidden;border:2px solid #062022}
+.cctv .overlay{position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay}
+.cctv .timestamp{position:absolute;left:8px;top:8px;font-size:12px;color:#b8f7c9}
+.cctv .label{position:absolute;right:8px;top:8px;font-size:12px;color:#f7c6c6}
+
+/* static noise */
+.static{position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1px);opacity:.12;filter:grayscale(1)}
+
+/* rocket / underground animation */
+.scene{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:140px;height:220px;display:flex;align-items:flex-end;justify-content:center;pointer-events:none}
+.shaft{width:80px;height:160px;background:linear-gradient(#0b0f10,#051011);border-radius:6px 6px 0 0;position:relative;overflow:visible;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+.rocket{position:absolute;bottom:-40px;width:28px;height:90px;background:linear-gradient(#dedede,#bfbfbf);border-radius:6px 6px 4px 4px;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center}
+.flame{position:absolute;bottom:-40px;width:18px;height:60px;border-radius:50%;filter:blur(8px);opacity:0}
+@keyframes launchUp{0%{transform:translate(-50%,0)}70%{transform:translate(-50%,-420px)}100%{transform:translate(-50%,-520px);opacity:0}}
+@keyframes flameAnim{0%{opacity:1;transform:scaleY(0.6)}50%{opacity:1;transform:scaleY(1)}100%{opacity:0;transform:scaleY(1.4)}}
+.rocket.launch{animation:launchUp 3s ease-in forwards}
+.flame.launch{animation:flameAnim .9s linear infinite}
+
+.statusbar{padding:8px 12px;font-size:13px;color:#9bd5a2}
+footer{padding:8px 12px;font-size:12px;color:#7fbf9a}
+
+@media (max-width:980px){main{grid-template-columns:1fr} .panel{order:2}}
+
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">TOP SECRET // LEVEL OMEGA — Launch Console</div>
+    <div style="flex:1"></div>
+    <div class="controls">
+      <button id="start" class="primary">시작 ▶</button>
+      <button id="pause">일시정지 ⏸</button>
+      <button id="reset" class="danger">초기화 ⟲</button>
+      <label>속도 <input id="speed" type="range" min="0" max="100" value="50"/></label>
+      <label>효과음 <select id="sfx"><option value="on">ON</option><option value="off">OFF</option></select></label>
+    </div>
+  </header>  <main>
+    <div class="console" id="console" role="log" aria-live="polite">
+      <div class="log" id="log"></div>
+    </div><aside class="panel">
+  <h3>CCTV FEED — SILO / UNDERGROUND</h3>
+  <div class="cctv" id="cctv">
+    <div class="timestamp" id="ct_ts">2025-09-03 00:00:00</div>
+    <div class="label">CAM: SILO-03</div>
+    <div class="static"></div>
+    <div class="scene" id="scene">
+      <div class="shaft">
+        <div class="rocket" id="rocket"></div>
+        <div class="flame" id="flame" style="background:radial-gradient(circle at 30% 30%, rgba(255,200,60,0.95), rgba(255,100,10,0.8), rgba(200,20,0,0.6));"></div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar" id="statbar">Status: Idle</div>
+</aside>
+
+  </main>  <footer>완전 가상 시뮬레이션입니다. 실제 시스템과 무관합니다. (오디오 허용을 위해 사용자 동작이 필요합니다.)</footer>  <script>
+    // Elements
+    const logEl = document.getElementById('log');
+    const consoleEl = document.getElementById('console');
+    const startBtn = document.getElementById('start');
+    const pauseBtn = document.getElementById('pause');
+    const resetBtn = document.getElementById('reset');
+    const speedRange = document.getElementById('speed');
+    const sfxSel = document.getElementById('sfx');
+    const statbar = document.getElementById('statbar');
+    const cctvTs = document.getElementById('ct_ts');
+    const rocket = document.getElementById('rocket');
+    const flame = document.getElementById('flame');
+
+    // Timestamp helper
+    function nowStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0')+" "+String(d.getHours()).padStart(2,'0')+":"+String(d.getMinutes()).padStart(2,'0')+":"+String(d.getSeconds()).padStart(2,'0'); }
+
+    // Lines (single-line flow)
+    const LINES = [
+      "00:00:01 — SYSTEM BOOT... OK",
+      "00:00:02 — SATELLITE LINK... ESTABLISHED",
+      "00:00:03 — MAINFRAME ACCESS... GRANTED",
+      "00:00:04 — SECURITY CLEARANCE... VERIFIED",
+      "00:00:05 — PROTOCOL \"NOVA-1\" INITIATED",
+      "00:00:07 — DUAL-KEY SYSTEM ARMED",
+      "00:00:08 — KEY A: INSERTED ✅",
+      "00:00:09 — KEY B: INSERTED ✅",
+      "00:00:10 — OVERRIDE LOCK: DISABLED",
+      "00:00:12 — COMMAND CODE INPUT REQUIRED",
+      "00:00:13 — CODE RECEIVED: █████-█████-OMEGA",
+      "00:00:14 — CODE VERIFICATION... MATCH",
+      "00:00:16 — TARGETING SYSTEM ONLINE",
+      "00:00:17 — COORDINATE UPLOAD... SUCCESS",
+      "00:00:18 — TRAJECTORY CALCULATION... COMPLETE",
+      "00:00:19 — WARHEAD PAYLOAD: 3x MIRV",
+      "00:00:20 — STATUS: STANDBY",
+      "00:00:22 — COMM CHANNEL SYNC... ACTIVE",
+      "00:00:23 — GLOBAL ALERT SIGNAL: TRANSMITTED",
+      "00:00:24 — RESPONSE: ACKNOWLEDGED",
+      "00:00:26 — FINAL CONFIRMATION REQUIRED",
+      "00:00:27 — AUTHORIZATION LEVEL: OMEGA",
+      "00:00:28 — COMMAND SEAL: VERIFIED",
+      "00:00:30 — LAUNCH TIMER ACTIVATED",
+      // countdown lines
+      ...Array.from({length:30},(_,i)=>`00:00:${31+i} — T-MINUS ${30-i}...`),
+      "00:01:03 — LAUNCH SEQUENCE INITIATED",
+      "00:01:04 — SILO DOORS OPEN ✅",
+      "00:01:05 — IGNITION... ACTIVE",
+      "00:01:06 — BOOSTER STAGE 1... ONLINE",
+      "00:01:07 — BOOSTER STAGE 2... ONLINE",
+      "00:01:08 — STABILIZER CONTROL... LOCKED",
+      "00:01:09 — FUEL PRESSURE... NOMINAL",
+      "00:01:10 — GUIDANCE SYSTEM... SYNCED",
+      "00:01:12 — FINAL CHECK COMPLETE",
+      "00:01:13 — STATUS: READY",
+      "00:01:14 — LAUNCH CONFIRMED ☢️",
+      "00:01:15 — SYSTEM RESPONSE: SUCCESS",
+      "00:01:16 — WARHEAD DEPLOYED",
+      "00:01:17 — TRAJECTORY: ACTIVE",
+      "00:01:18 — NUCLEAR PROTOCOL \"NOVA-1\" COMPLETE"
+    ];
+
+    // Audio
+    let audioCtx = null;
+    const SFX = {enabled:true, ensure(){ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }, tick(){ if(!this.enabled) return; this.ensure(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='square'; o.frequency.setValueAtTime(800,audioCtx.currentTime); o.frequency.exponentialRampToValueAtTime(480,audioCtx.currentTime+0.06); g.gain.setValueAtTime(0.0001,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.35,audioCtx.currentTime+0.005); g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.09); o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.09); }, warn(){ if(!this.enabled) return; this.ensure(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(520,audioCtx.currentTime); o.frequency.linearRampToValueAtTime(260,audioCtx.currentTime+0.25); g.gain.setValueAtTime(0.0001,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.5,audioCtx.currentTime+0.02); g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.3); o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.32); }, siren(d=2.5){ if(!this.enabled) return; this.ensure(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='sine'; const now=audioCtx.currentTime; g.gain.setValueAtTime(0.0001,now); g.gain.exponentialRampToValueAtTime(0.6,now+0.2); g.gain.exponentialRampToValueAtTime(0.0001,now+d); const sweep=()=>{ const t=audioCtx.currentTime; o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(440,t); o.frequency.linearRampToValueAtTime(880,t+0.5); o.frequency.linearRampToValueAtTime(440,t+1); }; const int=setInterval(sweep,1000); sweep(); o.connect(g).connect(audioCtx.destination); o.start(); setTimeout(()=>{ clearInterval(int); o.stop(); }, d*1000); },
+      // rocket whoosh + rumble
+      rocket(){ if(!this.enabled) return; this.ensure(); const now=audioCtx.currentTime; // rumble
+        const rumble=audioCtx.createOscillator(); const rG=audioCtx.createGain(); rumble.type='sine'; rumble.frequency.setValueAtTime(40, now); rumble.frequency.exponentialRampToValueAtTime(12, now+2.5); rG.gain.setValueAtTime(0.0001, now); rG.gain.exponentialRampToValueAtTime(0.9, now+0.08); rG.gain.exponentialRampToValueAtTime(0.0001, now+4.0); // filtered noise for whoosh
+        const bufferSize = audioCtx.sampleRate * 2.0; const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate); const data = noiseBuffer.getChannelData(0); for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1) * Math.exp(-i/bufferSize*3); }
+        const noise = audioCtx.createBufferSource(); noise.buffer = noiseBuffer; const bp = audioCtx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.setValueAtTime(800, now); bp.frequency.exponentialRampToValueAtTime(120, now+3.0);
+        const ng = audioCtx.createGain(); ng.gain.setValueAtTime(0.0001, now); ng.gain.exponentialRampToValueAtTime(0.7, now+0.05); ng.gain.exponentialRampToValueAtTime(0.0001, now+3.5);
+        rumble.connect(rG).connect(audioCtx.destination); noise.connect(bp).connect(ng).connect(audioCtx.destination); rumble.start(now); rumble.stop(now+4.0); noise.start(now); noise.stop(now+3.5);
+      }};
+
+    // Player
+    let idx = 0; let playing=false; let intervalId=null; let baseInterval = 1000; // default 1s
+
+    function appendLine(line){ const div=document.createElement('div'); div.innerHTML=line; logEl.appendChild(div); // auto-scroll to bottom
+      consoleEl.scrollTop = consoleEl.scrollHeight; statbar.textContent = `Status: ${line}`; // update CCTV timestamp
+      cctvTs.textContent = nowStr(); // sfx triggers
+      if(!SFX.enabled) return;
+      const U=line.toUpperCase(); if(U.includes('T-MINUS')) SFX.tick(); else if(U.includes('IRREVERSIBLE')||U.includes('WARNING')) SFX.warn(); else if(U.includes('LAUNCH SEQUENCE INITIATED')) SFX.siren(2.4); else if(U.includes('LAUNCH CONFIRMED')||U.includes('IGNITION')){ SFX.rocket(); startLaunchVisual(); }
+    }
+
+    function stepOnce(){ if(idx>=LINES.length){ stop(); return; } appendLine(LINES[idx++]); }
+
+    function start(){ if(playing) return; playing=true; // map speed to interval (speed 0..100 -> 1500..80)
+      const sp = Number(speedRange.value); baseInterval = 1500 - Math.round(sp * 14.2); if(baseInterval<80) baseInterval=80; SFX.enabled = (sfxSel.value==='on'); intervalId = setInterval(()=>{ stepOnce(); }, baseInterval); }
+    function stop(){ if(!playing) return; playing=false; if(intervalId){ clearInterval(intervalId); intervalId=null; } }
+    function reset(){ stop(); idx=0; logEl.innerHTML=''; statbar.textContent='Status: Idle'; // reset scene
+      rocket.classList.remove('launch'); flame.classList.remove('launch'); }
+
+    startBtn.addEventListener('click', ()=>{ // first user gesture must unlock AudioContext on some browsers
+      if(sfxSel.value==='on'){ SFX.enabled=true; SFX.ensure(); }
+      start(); });
+    pauseBtn.addEventListener('click', ()=>{ playing? stop(): start(); });
+    resetBtn.addEventListener('click', reset);
+    speedRange.addEventListener('input', ()=>{ if(playing){ stop(); start(); } });
+    sfxSel.addEventListener('change', ()=>{ SFX.enabled = (sfxSel.value==='on'); if(SFX.enabled) SFX.ensure(); });
+
+    // Keyboard
+    window.addEventListener('keydown',(e)=>{ if(e.key===' '){ e.preventDefault(); playing? stop(): start(); } if(e.key==='r'){ reset(); } });
+
+    // Launch visual: animate rocket and flame
+    function startLaunchVisual(){ // only trigger once per launch confirmation
+      if(rocket.classList.contains('launch')) return; rocket.classList.add('launch'); flame.classList.add('launch'); // remove after animation
+      setTimeout(()=>{ rocket.style.display='none'; flame.style.display='none'; statbar.textContent='Status: LAUNCHED — CCTV TRANSITION'; }, 3200);
+    }
+
+    // Respect reduced motion
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){ speedRange.value=20; }
+
+    // Initially keep console scrolled bottom when content overflows
+    const observer = new MutationObserver(()=>{ consoleEl.scrollTop = consoleEl.scrollHeight; }); observer.observe(logEl,{childList:true,subtree:true});
+  </script></body>
+</html>
